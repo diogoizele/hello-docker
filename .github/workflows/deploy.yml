@@ -27,17 +27,17 @@ jobs:
   code-quality:
     name: Qualidade de Código
     needs: build
-    runs-on: ubuntu-latest
-    
+    runs-on: ubuntu-latest        
+
     steps:
-      - name: Git Checkout
-        uses: actions/checkout@v3
-      - name: Adiciona permissão para maven
-        run: chmod +x mvnw
-      - name: Análise SonarCloud
-        run: ./mvnw verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=lab-devops-project
-        env: 
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} 
+    - name: Git Checkout
+      uses: actions/checkout@v3
+    - name: Adiciona permissão para mvnw
+      run: chmod +x mvnw
+    - name: Análise SonarCloud
+      run: ./mvnw verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=lab-devops-project
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           
   sec-tests:
     name: Análise de Segurança
@@ -47,5 +47,45 @@ jobs:
     steps:
     - name: Simula execução de testes de segurança
       run: echo Testes de segurança executados com sucesso
+      
+  push-image:
+    name: Enviar imagem Heroku
+    needs: [code-quality, sec-tests]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Prepara ambiente Docker
+      uses: docker/setup-buildx-action@v2
+      with:
+        install: true
+    - name: Login no Heroku
+      uses: docker/login-action@v2
+      with:
+        registry: registry.heroku.com
+        username: ${{ secrets.HEROKU_EMAIL }}
+        password: ${{ secrets.HEROKU_API_KEY }}
+    - name: Criação e envio da imagem
+      uses: docker/build-push-action@v3
+      with:
+        push: true
+        tags: registry.heroku.com/crescer-pipeline-teste/web:latest
+
+  deploy:
+    name: Publica ambiente Desenvolvimento
+    needs: push-image
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Login no Heroku
+      uses: docker/login-action@v2
+      with:
+        registry: registry.heroku.com
+        username: ${{ secrets.HEROKU_EMAIL }}
+        password: ${{ secrets.HEROKU_API_KEY }}
+    - name: Publicação
+      run: heroku container:release -a crescer-pipeline-teste web
+      env:
+        HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
   
     
